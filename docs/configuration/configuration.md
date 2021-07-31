@@ -412,8 +412,14 @@ subscription_id: <string>
 [ tenant_id: <string> ]
 # Optional client ID. Only required with authentication_method OAuth.
 [ client_id: <string> ]
+
 # Optional client secret. Only required with authentication_method OAuth.
+# It is given preference over `client_secret_file`.
 [ client_secret: <secret> ]
+
+# Path to file containing the client secret.
+# It is used if `client_secret` is not set.
+[ client_secret_file: <string> ]
 
 # Refresh interval to re-read the instance list.
 [ refresh_interval: <duration> | default = 300s ]
@@ -447,7 +453,15 @@ The following meta labels are available on targets during [relabeling](#relabel_
 # The information to access the Consul API. It is to be defined
 # as the Consul documentation requires.
 [ server: <host> | default = "localhost:8500" ]
+
+# Token to use when accessing the API.
+# It is given preference over `token_file`.
 [ token: <secret> ]
+
+# Path to file containing the token to use when accessing the API.
+# It is used if `token` is not set.
+[ token_file: <string> ]
+
 [ datacenter: <string> ]
 # Namespaces are only supported in Consul Enterprise.
 [ namespace: <string> ]
@@ -455,6 +469,7 @@ The following meta labels are available on targets during [relabeling](#relabel_
 # The username and password fields are deprecated in favor of the basic_auth configuration.
 [ username: <string> ]
 [ password: <secret> ]
+[ password_file: <string> ]
 
 # A list of services for which targets are retrieved. If omitted, all services
 # are scraped.
@@ -929,7 +944,15 @@ See below for the configuration options for EC2 discovery:
 # The AWS API keys. If blank, the environment variables `AWS_ACCESS_KEY_ID`
 # and `AWS_SECRET_ACCESS_KEY` are used.
 [ access_key: <string> ]
+
+# Secret key to use when accessing the API.
+# It is given preference over `secret_key_file`.
 [ secret_key: <secret> ]
+
+# Path to file containing the secret key to use when accessing the API.
+# It is used if `secret_key` is not set.
+[ secret_key_file: <string> ]
+
 # Named AWS profile used to connect to the API.
 [ profile: <string> ]
 
@@ -1022,7 +1045,10 @@ region: <string>
 
 # password for the Identity V2 and V3 APIs. Consult with your provider's
 # control panel to discover your account's preferred method of authentication.
+# You can alternatively provide a path to a file containing the # password.
+# If both are provided, `password` is used.
 [ password: <secret> ]
+[ password_file: <string> ]
 
 # At most one of domain_id and domain_name must be provided if using username
 # with Identity V3. Otherwise, either are optional.
@@ -1044,8 +1070,11 @@ region: <string>
 [ application_credential_id: <string> ]
 
 # The application_credential_secret field is required if using an application
-# credential to authenticate.
+# credential to authenticate. Alternatively you can provide a path to the file
+# containing the secret. If both are provided, `application_credential_secret`
+# is used.
 [ application_credential_secret: <secret> ]
+[ application_credential_secret_file: <string> ]
 
 # Whether the service discovery should list all instances for all projects.
 # It is only relevant for the 'instance' role and usually requires admin permissions.
@@ -1654,7 +1683,15 @@ See below for the configuration options for Lightsail discovery:
 # The AWS API keys. If blank, the environment variables `AWS_ACCESS_KEY_ID`
 # and `AWS_SECRET_ACCESS_KEY` are used.
 [ access_key: <string> ]
+
+# Secret key to use when accessing the API.
+# It is given preference over `secret_key_file`.
 [ secret_key: <secret> ]
+
+# Path to file containing the secret key to use when accessing the API.
+# It is used if `secret_key` is not set.
+[ secret_key_file: <string> ]
+
 # Named AWS profile used to connect to the API.
 [ profile: <string> ]
 
@@ -2465,7 +2502,14 @@ sigv4:
   # The AWS API keys. If blank, the environment variables `AWS_ACCESS_KEY_ID`
   # and `AWS_SECRET_ACCESS_KEY` are used.
   [ access_key: <string> ]
+
+  # Secret key to use when accessing the API.
+  # It is given preference over `secret_key_file`.
   [ secret_key: <secret> ]
+
+  # Path to file containing the secret key to use when accessing the API.
+  # It is used if `secret_key` is not set.
+  [ secret_key_file: <string> ]
 
   # Named AWS profile used to authenticate.
   [ profile: <string> ]
