@@ -114,25 +114,23 @@ func (i *Ingress) process(ctx context.Context, ch chan<- []*targetgroup.Group) b
 		return true
 	}
 
-	switch ingress := o.(type) {
+	var ingress *v1.Ingress
+	switch ing := o.(type) {
 	case *v1.Ingress:
-		send(ctx, ch, i.buildIngress(ingress))
-		return true
+		ingress = ing
 	case *v1beta1.Ingress:
-		send(ctx, ch, i.buildIngressV1beta1(ingress))
+		ingress = convertV1Beta1ToV1(ing)
+	default:
+		level.Error(i.logger).Log("msg", "converting to Ingress object failed", "err",
+			errors.Errorf("received unexpected object: %v", o))
 		return true
 	}
-
-	level.Error(i.logger).Log("msg", "converting to Ingress object failed", "err",
-		errors.Errorf("received unexpected object: %v", o))
+	send(ctx, ch, i.buildIngress(ingress))
 	return true
+
 }
 
 func ingressSource(s *v1.Ingress) string {
-	return ingressSourceFromNamespaceAndName(s.Namespace, s.Name)
-}
-
-func ingressSourceV1beta1(s *v1beta1.Ingress) string {
 	return ingressSourceFromNamespaceAndName(s.Namespace, s.Name)
 }
 
@@ -175,45 +173,7 @@ func ingressLabels(ingress *v1.Ingress) model.LabelSet {
 	return ls
 }
 
-func ingressLabelsV1beta1(ingress *v1beta1.Ingress) model.LabelSet {
-	// Each label and annotation will create two key-value pairs in the map.
-	ls := make(model.LabelSet, 2*(len(ingress.Labels)+len(ingress.Annotations))+2)
-	ls[ingressNameLabel] = lv(ingress.Name)
-	ls[namespaceLabel] = lv(ingress.Namespace)
-	if ingress.Spec.IngressClassName != nil {
-		ls[ingressClassNameLabel] = lv(*ingress.Spec.IngressClassName)
-	}
-
-	for k, v := range ingress.Labels {
-		ln := strutil.SanitizeLabelName(k)
-		ls[model.LabelName(ingressLabelPrefix+ln)] = lv(v)
-		ls[model.LabelName(ingressLabelPresentPrefix+ln)] = presentValue
-	}
-
-	for k, v := range ingress.Annotations {
-		ln := strutil.SanitizeLabelName(k)
-		ls[model.LabelName(ingressAnnotationPrefix+ln)] = lv(v)
-		ls[model.LabelName(ingressAnnotationPresentPrefix+ln)] = presentValue
-	}
-	return ls
-}
-
 func pathsFromIngressRule(rv *v1.IngressRuleValue) []string {
-	if rv.HTTP == nil {
-		return []string{"/"}
-	}
-	paths := make([]string, len(rv.HTTP.Paths))
-	for n, p := range rv.HTTP.Paths {
-		path := p.Path
-		if path == "" {
-			path = "/"
-		}
-		paths[n] = path
-	}
-	return paths
-}
-
-func pathsFromIngressRuleV1beta1(rv *v1beta1.IngressRuleValue) []string {
 	if rv.HTTP == nil {
 		return []string{"/"}
 	}
@@ -263,37 +223,39 @@ func (i *Ingress) buildIngress(ingress *v1.Ingress) *targetgroup.Group {
 	return tg
 }
 
-func (i *Ingress) buildIngressV1beta1(ingress *v1beta1.Ingress) *targetgroup.Group {
-	tg := &targetgroup.Group{
-		Source: ingressSourceV1beta1(ingress),
-	}
-	tg.Labels = ingressLabelsV1beta1(ingress)
-
-	tlsHosts := make(map[string]struct{})
-	for _, tls := range ingress.Spec.TLS {
-		for _, host := range tls.Hosts {
-			tlsHosts[host] = struct{}{}
-		}
+// Convert only necessary fields of v1beta1 Ingress to v1 Ingress
+func convertV1Beta1ToV1(src *v1beta1.Ingress) *v1.Ingress {
+	v1TLS := []v1.IngressTLS{}
+	for _, tls := range src.Spec.TLS {
+		v1TLS = append(v1TLS, v1.IngressTLS{
+			Hosts: tls.Hosts,
+		})
 	}
 
-	for _, rule := range ingress.Spec.Rules {
-		paths := pathsFromIngressRuleV1beta1(&rule.IngressRuleValue)
-
-		scheme := "http"
-		_, isTLS := tlsHosts[rule.Host]
-		if isTLS {
-			scheme = "https"
+	v1Rules := []v1.IngressRule{}
+	for _, rule := range src.Spec.Rules {
+		rv := v1.IngressRuleValue{}
+		if rule.IngressRuleValue.HTTP != nil {
+			var paths []v1.HTTPIngressPath
+			for _, path := range rule.IngressRuleValue.HTTP.Paths {
+				paths = append(paths, v1.HTTPIngressPath{
+					Path: path.Path,
+				})
+			}
+			rv.HTTP = &v1.HTTPIngressRuleValue{Paths: paths}
 		}
-
-		for _, path := range paths {
-			tg.Targets = append(tg.Targets, model.LabelSet{
-				model.AddressLabel: lv(rule.Host),
-				ingressSchemeLabel: lv(scheme),
-				ingressHostLabel:   lv(rule.Host),
-				ingressPathLabel:   lv(path),
-			})
-		}
+		v1Rules = append(v1Rules, v1.IngressRule{
+			Host:             rule.Host,
+			IngressRuleValue: rv,
+		})
 	}
 
-	return tg
+	return &v1.Ingress{
+		ObjectMeta: src.ObjectMeta,
+		Spec: v1.IngressSpec{
+			IngressClassName: src.Spec.IngressClassName,
+			TLS:              v1TLS,
+			Rules:            v1Rules,
+		},
+	}
 }
